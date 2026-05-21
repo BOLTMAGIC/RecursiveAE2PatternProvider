@@ -4,17 +4,17 @@ import com.lumengrid.recursiveae2patternprovider.Config;
 import com.lumengrid.recursiveae2patternprovider.PatternUtil;
 import com.lumengrid.recursiveae2patternprovider.RecursiveAE2PatternProvider;
 import appeng.core.definitions.AEItems;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.core.NonNullList;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.component.CustomData;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.inventory.CraftingContainer;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.crafting.*;
+import net.minecraft.world.item.crafting.CraftingRecipe;
+import net.minecraft.world.item.crafting.RecipeSerializer;
+import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.level.Level;
 
 /**
@@ -43,14 +43,14 @@ public class RecursivePatternRecipe implements CraftingRecipe {
     }
     
     @Override
-    public boolean matches(CraftingInput input, Level level) {
+    public boolean matches(CraftingContainer inv, Level level) {
         ItemStack pattern = ItemStack.EMPTY;
         ItemStack recipeItem = ItemStack.EMPTY;
         int itemCount = 0;
         Item configuredItem = getConfiguredRecipeItem();
-        
-        for (int i = 0; i < input.size(); i++) {
-            ItemStack stack = input.getItem(i);
+
+        for (int i = 0; i < inv.getContainerSize(); i++) {
+            ItemStack stack = inv.getItem(i);
             if (!stack.isEmpty()) {
                 itemCount++;
                 if (PatternUtil.isAE2Pattern(stack)) {
@@ -62,7 +62,7 @@ public class RecursivePatternRecipe implements CraftingRecipe {
                 }
             }
         }
-        
+
         // Accept two scenarios:
         // 1. NON-recursive Pattern + Recipe Item (2 items) - for making patterns recursive
         // 2. Recursive Pattern alone (1 item) - for removing recursive tag
@@ -71,20 +71,20 @@ public class RecursivePatternRecipe implements CraftingRecipe {
         } else if (itemCount == 1 && !pattern.isEmpty() && PatternUtil.isRecursive(pattern)) {
             return true; // Recursive pattern alone
         }
-        
+
         return false;
     }
     
     @Override
-    public ItemStack assemble(CraftingInput input, HolderLookup.Provider registries) {
+    public ItemStack assemble(CraftingContainer inv, net.minecraft.core.RegistryAccess registries) {
         ItemStack pattern = ItemStack.EMPTY;
         boolean hasRecipeItem = false;
         int itemCount = 0;
         Item configuredItem = getConfiguredRecipeItem();
-        
+
         // Find pattern and check for configured recipe item
-        for (int i = 0; i < input.size(); i++) {
-            ItemStack stack = input.getItem(i);
+        for (int i = 0; i < inv.getContainerSize(); i++) {
+            ItemStack stack = inv.getItem(i);
             if (!stack.isEmpty()) {
                 itemCount++;
                 if (PatternUtil.isAE2Pattern(stack)) {
@@ -94,7 +94,7 @@ public class RecursivePatternRecipe implements CraftingRecipe {
                 }
             }
         }
-        
+
         if (!pattern.isEmpty()) {
             if (itemCount == 2 && hasRecipeItem) {
                 // Non-recursive Pattern + Recipe Item: Add recursive flag
@@ -109,26 +109,22 @@ public class RecursivePatternRecipe implements CraftingRecipe {
                 return removeRecursiveFlag(pattern);
             }
         }
-        
+
         return ItemStack.EMPTY;
     }
     
     private ItemStack createRecursivePattern(ItemStack originalPattern) {
         try {
             ItemStack newPattern = originalPattern.copy();
-            
-            // Add recursive flag to custom data
-            var existingData = newPattern.get(DataComponents.CUSTOM_DATA);
-            CompoundTag customData = existingData != null ? existingData.copyTag() : new CompoundTag();
+
+            // Add recursive flag to NBT
+            CompoundTag customData = newPattern.getOrCreateTag();
             customData.putBoolean("recursive", true);
-            
-            // Use the correct way to set custom data
-            newPattern.set(DataComponents.CUSTOM_DATA, 
-                CustomData.of(customData));
-            
+            newPattern.setTag(customData);
+
             RecursiveAE2PatternProvider.LOGGER.debug("Created recursive pattern with NBT: {}", customData);
             return newPattern;
-            
+
         } catch (Exception e) {
             RecursiveAE2PatternProvider.LOGGER.error("Failed to create recursive pattern: {}", e.getMessage());
             return ItemStack.EMPTY;
@@ -138,27 +134,24 @@ public class RecursivePatternRecipe implements CraftingRecipe {
     private ItemStack removeRecursiveFlag(ItemStack recursivePattern) {
         try {
             ItemStack newPattern = recursivePattern.copy();
-            
-            // Remove recursive flag from custom data
-            var existingData = newPattern.get(DataComponents.CUSTOM_DATA);
-            if (existingData != null) {
-                CompoundTag customData = existingData.copyTag();
-                
-                // Remove the recursive key
+
+            // Remove recursive flag from NBT
+            CompoundTag customData = newPattern.getTag();
+            if (customData != null) {
                 customData.remove("recursive");
-                
-                // If custom data is now empty, remove the component entirely
+
+                // If custom data is now empty, remove the tag entirely
                 if (customData.isEmpty()) {
-                    newPattern.remove(DataComponents.CUSTOM_DATA);
+                    newPattern.setTag(null);
                     RecursiveAE2PatternProvider.LOGGER.debug("Removed all custom data from pattern");
                 } else {
-                    newPattern.set(DataComponents.CUSTOM_DATA, CustomData.of(customData));
+                    newPattern.setTag(customData);
                     RecursiveAE2PatternProvider.LOGGER.debug("Removed recursive flag, remaining NBT: {}", customData);
                 }
             }
-            
+
             return newPattern;
-            
+
         } catch (Exception e) {
             RecursiveAE2PatternProvider.LOGGER.error("Failed to remove recursive flag: {}", e.getMessage());
             return ItemStack.EMPTY;
@@ -166,15 +159,15 @@ public class RecursivePatternRecipe implements CraftingRecipe {
     }
     
     @Override
-    public ItemStack getResultItem(HolderLookup.Provider registries) {
+    public ItemStack getResultItem(net.minecraft.core.RegistryAccess registries) {
         // Return a generic crafting pattern for recipe book display
         // The actual result depends on the input pattern type
         return AEItems.CRAFTING_PATTERN.stack();
     }
     
     @Override
-    public NonNullList<ItemStack> getRemainingItems(CraftingInput input) {
-        return NonNullList.withSize(input.size(), ItemStack.EMPTY);
+    public NonNullList<ItemStack> getRemainingItems(CraftingContainer inv) {
+        return NonNullList.withSize(inv.getContainerSize(), ItemStack.EMPTY);
     }
     
     @Override
@@ -193,7 +186,13 @@ public class RecursivePatternRecipe implements CraftingRecipe {
     }
     
     @Override
-    public CraftingBookCategory category() {
-        return CraftingBookCategory.MISC;
+    public ResourceLocation getId() {
+        //noinspection removal
+        return new ResourceLocation(RecursiveAE2PatternProvider.MODID, "recursive_pattern");
+    }
+
+    @Override
+    public net.minecraft.world.item.crafting.CraftingBookCategory category() {
+        return net.minecraft.world.item.crafting.CraftingBookCategory.MISC;
     }
 }

@@ -1,6 +1,6 @@
 package com.lumengrid.recursiveae2patternprovider.mixin;
 
-import net.neoforged.fml.loading.LoadingModList;
+import net.minecraftforge.fml.ModList;
 import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
@@ -22,14 +22,14 @@ public class RecursiveAE2MixinPlugin implements IMixinConfigPlugin {
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
         if (mixinClassName.contains("TileAssemblerMatrixPatternMixin")) {
-            boolean isExtendedAELoaded = LoadingModList.get().getModFileById("extendedae") != null;
+            boolean isExtendedAELoaded = ModList.get().isLoaded("extendedae");
             if (!isExtendedAELoaded) {
                 System.out.println("[RecursiveAE2PatternProvider] ExtendedAE not found, skipping TileAssemblerMatrixPatternMixin");
             }
             return isExtendedAELoaded;
         }
         if (mixinClassName.contains("AdvPatternProviderLogicMixin")) {
-            boolean isAdvancedAELoaded = LoadingModList.get().getModFileById("advanced_ae") != null;
+            boolean isAdvancedAELoaded = ModList.get().isLoaded("advanced_ae");
             if (!isAdvancedAELoaded) {
                 System.out.println("[RecursiveAE2PatternProvider] AdvancedAE not found, skipping AdvPatternProviderLogicMixin");
             }

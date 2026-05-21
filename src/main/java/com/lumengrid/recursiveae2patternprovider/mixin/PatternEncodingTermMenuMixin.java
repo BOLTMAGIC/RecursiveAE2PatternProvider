@@ -4,10 +4,8 @@ import appeng.api.crafting.PatternDetailsHelper;
 import appeng.menu.me.items.PatternEncodingTermMenu;
 import com.lumengrid.recursiveae2patternprovider.PatternUtil;
 import com.lumengrid.recursiveae2patternprovider.RecursiveAE2PatternProvider;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.component.CustomData;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -42,12 +40,9 @@ public class PatternEncodingTermMenuMixin {
                 RecursiveAE2PatternProvider.LOGGER.debug("Preserving recursive flag during pattern re-encoding");
                 
                 // Preserve the recursive flag by adding it to the new pattern
-                var existingData = encodedPattern.get(DataComponents.CUSTOM_DATA);
-                CompoundTag customData = existingData != null ? existingData.copyTag() : new CompoundTag();
+                CompoundTag customData = encodedPattern.getOrCreateTag();
                 customData.putBoolean("recursive", true);
-                
-                // Set the custom data with the recursive flag
-                encodedPattern.set(DataComponents.CUSTOM_DATA, CustomData.of(customData));
+                encodedPattern.setTag(customData);
                 
                 RecursiveAE2PatternProvider.LOGGER.debug("Successfully preserved recursive flag in re-encoded pattern");
             }
